@@ -1,7 +1,7 @@
 {
   "name": "pdfslice",
   "type": "module",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Split, gather, and verify PDF <-> page-image sets",
   "author": "DuckyMomo20012",
   "repository": {
