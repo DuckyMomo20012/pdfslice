@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true
+  },
+  "include": [
+    "eslint.config.mjs",
+    "tsdown.config.ts",
+    ".lintstagedrc.js",
+    "vitest.config.ts"
+  ]
+}

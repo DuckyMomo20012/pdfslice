@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+
+    "lib": ["ESNext"],
+    "moduleDetection": "force",
+
+    "baseUrl": ".",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "resolveJsonModule": true,
+    "allowJs": true,
+
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+
+    "declaration": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"],
+  "exclude": ["dist", "node_modules"]
+}

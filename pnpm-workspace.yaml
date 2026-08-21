@@ -1,0 +1,10 @@
+minimumReleaseAgeExclude:
+  - eslint@10.9.0
+shellEmulator: true
+
+trustPolicy: no-downgrade
+
+allowBuilds:
+  canvas: false
+  esbuild: false
+saveExact: true
