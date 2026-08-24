@@ -26,8 +26,8 @@ describe('splitAll', () => {
 
     expect(results).toHaveLength(1)
     const [result] = results
-    expect(result.pageCount).toBe(3)
-    expect(result.skipped).toBe(false)
+    expect(result!.pageCount).toBe(3)
+    expect(result!.skipped).toBe(false)
 
     // original pdf at source path must still exist (never deleted)
     expect(existsSync(pdfPath)).toBe(true)
@@ -58,7 +58,7 @@ describe('splitAll', () => {
     expect(manifest?.pageCount).toBe(2)
     expect(manifest?.images).toHaveLength(2)
     expect(manifest?.images[0]).toMatchObject({ file: 'doc.001.jpg', page: 1 })
-    expect(manifest?.images[0].hash).toBeTruthy()
+    expect(manifest?.images[0]!.hash).toBeTruthy()
   })
 
   it('does not descend into subfolders at default level 1', async () => {
@@ -69,7 +69,7 @@ describe('splitAll', () => {
 
     const results = await splitAll({ input: root, logger: silentLogger() })
     expect(results).toHaveLength(1)
-    expect(results[0].pdf).toContain('top.pdf')
+    expect(results[0]!.pdf).toContain('top.pdf')
   })
 
   it('descends into subfolders when level=2', async () => {
@@ -93,7 +93,7 @@ describe('splitAll', () => {
     })
 
     expect(results).toHaveLength(1)
-    expect(results[0].skipped).toBe(true)
+    expect(results[0]!.skipped).toBe(true)
     expect(existsSync(path.join(root, 'sample'))).toBe(false)
   })
 
@@ -120,5 +120,41 @@ describe('splitAll', () => {
     expect(buf[0]).toBe(0xFF)
     expect(buf[1]).toBe(0xD8)
     expect(buf[2]).toBe(0xFF)
+  })
+
+  it('uses a custom filename template when provided', async () => {
+    const pdfPath = path.join(root, 'sample.pdf')
+    await makeTestPdf(pdfPath, 2)
+
+    await splitAll({
+      input: root,
+      template: 'page-{{page_number}}.jpg',
+      logger: silentLogger(),
+    })
+
+    const outputFolder = path.join(root, 'sample')
+    const files = (await readdir(outputFolder)).sort()
+    expect(files).toEqual(
+      [
+        '.pdfslice-manifest.json',
+        'page-001.jpg',
+        'page-002.jpg',
+        'sample.pdf',
+      ].sort(),
+    )
+  })
+
+  it('records the filename template used in the manifest', async () => {
+    const pdfPath = path.join(root, 'sample.pdf')
+    await makeTestPdf(pdfPath, 1)
+
+    await splitAll({
+      input: root,
+      template: '{{page_number}}-{{filename}}.jpg',
+      logger: silentLogger(),
+    })
+
+    const manifest = await readManifest(path.join(root, 'sample'))
+    expect(manifest?.filenameTemplate).toBe('{{page_number}}-{{filename}}.jpg')
   })
 })

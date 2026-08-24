@@ -3,6 +3,7 @@ import { buildCommand } from '@stricli/core'
 export type SplitFlags = {
   level: number
   flatten: boolean
+  template: string
   dryRun: boolean
   verbose: boolean
   quiet: boolean
@@ -34,6 +35,13 @@ export const splitCommand = buildCommand({
         brief:
           'Pull every discovered PDF\'s output folder to the input root, instead of alongside each PDF',
         default: false,
+      },
+      template: {
+        kind: 'parsed',
+        parse: String,
+        brief:
+          'Page image filename template. Placeholders: {{filename}}, {{page_number}}. Must contain exactly one {{page_number}}.',
+        default: '{{filename}}.{{page_number}}.jpg',
       },
       dryRun: {
         kind: 'boolean',

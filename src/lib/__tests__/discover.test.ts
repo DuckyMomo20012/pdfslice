@@ -25,7 +25,7 @@ describe('pageImageName', () => {
 describe('parsePageFromImageName', () => {
   it('extracts the page number from a well-formed name', () => {
     expect(parsePageFromImageName('sample.001.jpg')).toBe(1)
-    expect(parsePageFromImageName('sample.2026.jpeg')).toBe(2026)
+    expect(parsePageFromImageName('sample.2026.jpg')).toBe(2026)
   })
 
   it('returns null for names without a page number', () => {

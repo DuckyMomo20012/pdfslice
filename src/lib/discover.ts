@@ -1,5 +1,7 @@
+import type { FilenameTemplate } from './filename-template'
 import { readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
+import { compileTemplate, DEFAULT_TEMPLATE } from './filename-template'
 
 /**
  * Find all PDF files under `root`, descending up to `level` directories deep.
@@ -57,17 +59,28 @@ export async function findImagesDeep(root: string): Promise<string[]> {
 }
 
 /**
- * Build the page-image filename: <filename>.<page>.jpg
- * Page number zero-padded to 3 digits; if the number itself is wider
- * than 3 digits, no padding is applied (natural width is used).
+ * Build the page-image filename using a template (default:
+ * "{{filename}}.{{page_number}}.jpg"). Page number is zero-padded to 3
+ * digits; if the number itself is wider than 3 digits, no padding is
+ * applied (natural width is used).
  */
-export function pageImageName(baseName: string, page: number): string {
-  const padded = page < 1000 ? String(page).padStart(3, '0') : String(page)
-  return `${baseName}.${padded}.jpg`
+export function pageImageName(
+  baseName: string,
+  page: number,
+  template: string = DEFAULT_TEMPLATE,
+): string {
+  return compileTemplate(template).render(baseName, page)
 }
 
-/** Parse a page number back out of a name produced by pageImageName. */
-export function parsePageFromImageName(fileName: string): number | null {
-  const m = fileName.match(/\.(\d+)\.jpe?g$/i)
-  return m ? parseInt(m[1]!, 10) : null
+/**
+ * Parse a page number back out of a name produced by pageImageName, using
+ * the same template it was generated with.
+ */
+export function parsePageFromImageName(
+  fileName: string,
+  template: string = DEFAULT_TEMPLATE,
+): number | null {
+  return compileTemplate(template).parsePage(fileName)
 }
+
+export type { FilenameTemplate }

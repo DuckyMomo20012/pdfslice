@@ -18,6 +18,7 @@ export async function splitImpl(
     input,
     level: flags.level,
     flatten: flags.flatten,
+    template: flags.template,
     dryRun: flags.dryRun,
     logger,
   })

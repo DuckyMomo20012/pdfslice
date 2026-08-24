@@ -2,6 +2,7 @@ import { buildCommand } from '@stricli/core'
 
 export type GatherFlags = {
   dryRun: boolean
+  backup: boolean
   verbose: boolean
   quiet: boolean
   logFile?: string
@@ -26,6 +27,11 @@ export const gatherCommand = buildCommand({
         kind: 'boolean',
         brief: 'Preview actions without writing any files',
         default: false,
+      },
+      backup: {
+        kind: 'boolean',
+        brief: 'Back up the existing PDF before overwriting it',
+        default: true,
       },
       verbose: {
         kind: 'boolean',

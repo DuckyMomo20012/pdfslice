@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdtemp, rm, stat, unlink } from 'node:fs/promises'
+import { mkdtemp, readdir, rm, stat, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -25,15 +25,15 @@ describe('gatherAll', () => {
     return path.join(root, 'sample')
   }
 
-  it('creates a gathered pdf on the first run', async () => {
+  it('overwrites the pdf in place on the first run (no separate .gathered.pdf)', async () => {
     const unitFolder = await splitFixture(3)
 
     const reports = await gatherAll({ input: root, logger: silentLogger() })
 
     expect(reports).toHaveLength(1)
-    expect(reports[0].action).toBe('created')
-    expect(reports[0].missingPages).toEqual([])
-    expect(existsSync(path.join(unitFolder, 'sample.gathered.pdf'))).toBe(true)
+    expect(reports[0]!.action).toBe('created')
+    expect(reports[0]!.missingPages).toEqual([])
+    expect(reports[0]!.outputPdf).toBe(path.join(unitFolder, 'sample.pdf'))
   })
 
   it('skips recreating the pdf when nothing changed', async () => {
@@ -41,40 +41,38 @@ describe('gatherAll', () => {
     await gatherAll({ input: root, logger: silentLogger() })
 
     const second = await gatherAll({ input: root, logger: silentLogger() })
-    expect(second[0].action).toBe('skipped-unchanged')
+    expect(second[0]!.action).toBe('skipped-unchanged')
   })
 
-  it('reports missing pages and does not falsely skip when an image is removed', async () => {
+  it('reports missing pages and still rebuilds when an image is removed', async () => {
     const unitFolder = await splitFixture(3)
     await gatherAll({ input: root, logger: silentLogger() })
 
     await unlink(path.join(unitFolder, 'sample.002.jpg'))
 
     const reports = await gatherAll({ input: root, logger: silentLogger() })
-    expect(reports[0].missingPages).toEqual([2])
-    expect(reports[0].action).toBe('created')
+    expect(reports[0]!.missingPages).toEqual([2])
+    expect(reports[0]!.action).toBe('created')
   })
 
-  it('recreates the gathered pdf after content changes and updates its mtime', async () => {
+  it('updates the pdf\'s mtime after content changes', async () => {
     const unitFolder = await splitFixture(2)
     await gatherAll({ input: root, logger: silentLogger() })
-    const outputPdf = path.join(unitFolder, 'sample.gathered.pdf')
+    const outputPdf = path.join(unitFolder, 'sample.pdf')
     const firstStat = await stat(outputPdf)
 
     await new Promise(r => setTimeout(r, 20))
     await unlink(path.join(unitFolder, 'sample.001.jpg'))
-    // put back a differently-sized image so the hash changes on regather
-    await makeTestPdf(path.join(root, 'throwaway.pdf'), 1) // unrelated no-op to advance time safely
 
-    const reports = await gatherAll({ input: root, logger: silentLogger() })
-    expect(reports[0].missingPages).toEqual([1])
+    await gatherAll({ input: root, logger: silentLogger() })
 
     const secondStat = await stat(outputPdf)
     expect(secondStat.mtimeMs).toBeGreaterThanOrEqual(firstStat.mtimeMs)
   })
 
-  it('dry-run does not write the gathered pdf', async () => {
-    await splitFixture(2)
+  it('dry-run does not modify the pdf', async () => {
+    const unitFolder = await splitFixture(2)
+    const before = await stat(path.join(unitFolder, 'sample.pdf'))
 
     const reports = await gatherAll({
       input: root,
@@ -82,12 +80,14 @@ describe('gatherAll', () => {
       logger: silentLogger(),
     })
 
-    expect(reports[0].action).toBe('would-create')
-    expect(existsSync(path.join(root, 'sample', 'sample.gathered.pdf'))).toBe(false)
+    expect(reports[0]!.action).toBe('would-create')
+    const after = await stat(path.join(unitFolder, 'sample.pdf'))
+    expect(after.mtimeMs).toBe(before.mtimeMs)
   })
 
-  it('check-only mode never writes a gathered pdf even across repeated calls', async () => {
+  it('check-only mode never writes or modifies the pdf, even across repeated calls', async () => {
     const unitFolder = await splitFixture(2)
+    const before = await stat(path.join(unitFolder, 'sample.pdf'))
 
     const reports = await gatherAll({
       input: root,
@@ -95,42 +95,94 @@ describe('gatherAll', () => {
       logger: silentLogger(),
     })
 
-    expect(reports[0].action).toBe('check-only')
-    expect(existsSync(path.join(unitFolder, 'sample.gathered.pdf'))).toBe(false)
+    expect(reports[0]!.action).toBe('check-only')
+    const after = await stat(path.join(unitFolder, 'sample.pdf'))
+    expect(after.mtimeMs).toBe(before.mtimeMs)
+  })
+
+  it('backs up the previous pdf before overwriting on change (default on)', async () => {
+    const unitFolder = await splitFixture(2)
+    await gatherAll({ input: root, logger: silentLogger() })
+
+    await unlink(path.join(unitFolder, 'sample.001.jpg'))
+    await gatherAll({ input: root, logger: silentLogger() })
+
+    const files = await readdir(unitFolder)
+    const backups = files.filter(f => f.includes('.bak-'))
+    expect(backups.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('skips backup when backup:false is passed', async () => {
+    const unitFolder = await splitFixture(2)
+    await gatherAll({ input: root, backup: false, logger: silentLogger() })
+
+    await unlink(path.join(unitFolder, 'sample.001.jpg'))
+    await gatherAll({ input: root, backup: false, logger: silentLogger() })
+
+    const files = await readdir(unitFolder)
+    const backups = files.filter(f => f.includes('.bak-'))
+    expect(backups.length).toBe(0)
   })
 
   it('does not mistake the original source-directory pdf for a unit folder', async () => {
-    // sample.pdf remains in `root` after split (never deleted) — root itself
-    // must not be picked up as a unit since it lacks a manifest.
     await splitFixture(1)
 
     const reports = await gatherAll({ input: root, logger: silentLogger() })
     expect(reports).toHaveLength(1)
-    expect(reports[0].folder).toBe(path.join(root, 'sample'))
+    expect(reports[0]!.folder).toBe(path.join(root, 'sample'))
   })
 
-  it('excludes its own .gathered.pdf output from being treated as the source pdf', async () => {
+  it('resolves the source pdf from the manifest across repeated runs with backups present', async () => {
     const unitFolder = await splitFixture(1)
     await gatherAll({ input: root, logger: silentLogger() })
 
-    // a second gather run must still resolve sample.pdf as the source,
-    // not sample.gathered.pdf, and must not cascade the filename
+    await unlink(path.join(unitFolder, 'sample.001.jpg'))
     await gatherAll({ input: root, logger: silentLogger() })
-    expect(existsSync(path.join(unitFolder, 'sample.gathered.pdf'))).toBe(true)
-    expect(existsSync(path.join(unitFolder, 'sample.gathered.gathered.pdf'))).toBe(
-      false,
-    )
+
+    const files = await readdir(unitFolder)
+    expect(files).toContain('sample.pdf')
+    const backups = files.filter(f => f.includes('.bak-'))
+    expect(backups.length).toBeGreaterThanOrEqual(1)
   })
 
   it('reports missing-source when a unit folder\'s pdf is absent', async () => {
     const unitFolder = await splitFixture(1)
-    // simulate a manifest-only folder with no pdf (edge case / corruption)
     const manifestPath = path.join(unitFolder, '.pdfslice-manifest.json')
     expect(existsSync(manifestPath)).toBe(true)
     await unlink(path.join(unitFolder, 'sample.pdf'))
 
     const reports = await gatherAll({ input: root, logger: silentLogger() })
-    // folder no longer has a pdf, so it won't be detected as a unit at all
-    expect(reports).toHaveLength(0)
+    expect(reports).toHaveLength(1)
+    expect(reports[0]!.action).toBe('missing-source')
+  })
+
+  it('gathers correctly using a custom filename template recorded in the manifest', async () => {
+    const pdfPath = path.join(root, 'sample.pdf')
+    await makeTestPdf(pdfPath, 3)
+    await splitAll({
+      input: root,
+      template: 'page-{{page_number}}.jpg',
+      logger: silentLogger(),
+    })
+
+    const reports = await gatherAll({ input: root, logger: silentLogger() })
+    expect(reports[0]!.action).toBe('created')
+    expect(reports[0]!.missingPages).toEqual([])
+    expect(reports[0]!.foundImages).toBe(3)
+  })
+
+  it('detects a missing page correctly with a custom template', async () => {
+    const pdfPath = path.join(root, 'sample.pdf')
+    await makeTestPdf(pdfPath, 3)
+    await splitAll({
+      input: root,
+      template: 'page-{{page_number}}.jpg',
+      logger: silentLogger(),
+    })
+
+    await unlink(path.join(root, 'sample', 'page-002.jpg'))
+
+    const reports = await gatherAll({ input: root, logger: silentLogger() })
+    expect(reports[0]!.missingPages).toEqual([2])
   })
 })
