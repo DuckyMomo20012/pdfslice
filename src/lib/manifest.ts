@@ -19,6 +19,10 @@ export type Manifest = {
   pageCount: number
   images: ManifestImageEntry[]
   updatedAt: string
+  /** Set once `gather` has run at least once against this folder. */
+  gatheredAt?: string
+  /** Filename template used to generate the page images (see filename-template.ts). */
+  filenameTemplate: string
 }
 
 export function manifestPathFor(folder: string): string {

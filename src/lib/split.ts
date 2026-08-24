@@ -7,6 +7,7 @@ import { PDFDocument } from 'pdf-lib'
 import { pdf as pdfToImg } from 'pdf-to-img'
 import sharp from 'sharp'
 import { findPdfs, pageImageName } from './discover'
+import { DEFAULT_TEMPLATE } from './filename-template'
 import { hashFile } from './hash'
 import { writeManifest } from './manifest'
 
@@ -17,6 +18,8 @@ export type SplitOptions = {
   level?: number
   /** Pull every discovered PDF's output folder up to `input` root instead of alongside each PDF. */
   flatten?: boolean
+  /** Filename template for page images. Default: "{{filename}}.{{page_number}}.jpg". */
+  template?: string
   dryRun?: boolean
   logger: Logger
 }
@@ -35,22 +38,35 @@ function folderNameFor(pdfPath: string): string {
 }
 
 export async function splitAll(opts: SplitOptions): Promise<SplitResult[]> {
-  const { input, level = 1, flatten = false, dryRun = false, logger } = opts
+  const {
+    input,
+    level = 1,
+    flatten = false,
+    template = DEFAULT_TEMPLATE,
+    dryRun = false,
+    logger,
+  } = opts
   const pdfs = await findPdfs(input, level)
   logger.info(`Found ${pdfs.length} PDF file(s) under ${input}`, { level })
 
   const results: SplitResult[] = []
   for (const pdfPath of pdfs) {
-    results.push(await splitOne(pdfPath, { input, flatten, dryRun, logger }))
+    results.push(await splitOne(pdfPath, { input, flatten, template, dryRun, logger }))
   }
   return results
 }
 
 async function splitOne(
   pdfPath: string,
-  ctx: { input: string, flatten: boolean, dryRun: boolean, logger: Logger },
+  ctx: {
+    input: string
+    flatten: boolean
+    template: string
+    dryRun: boolean
+    logger: Logger
+  },
 ): Promise<SplitResult> {
-  const { flatten, dryRun, logger } = ctx
+  const { flatten, template, dryRun, logger } = ctx
   const baseName = folderNameFor(pdfPath)
   const parentDir = flatten ? ctx.input : path.dirname(pdfPath)
   const outputFolder = path.join(parentDir, baseName)
@@ -64,7 +80,7 @@ async function splitOne(
     const doc = await PDFDocument.load(await (await import('node:fs/promises')).readFile(pdfPath))
     const pageCount = doc.getPageCount()
     for (let i = 1; i <= pageCount; i++) {
-      logger.info(`[dry-run] would create image ${pageImageName(baseName, i)}`)
+      logger.info(`[dry-run] would create image ${pageImageName(baseName, i, template)}`)
     }
     return { pdf: pdfPath, outputFolder, pageCount, images: [], skipped: true }
   }
@@ -87,7 +103,7 @@ async function splitOne(
   const document = await pdfToImg(destPdfPath, { scale: 2 })
   let pageNum = 1
   for await (const image of document) {
-    const fileName = pageImageName(baseName, pageNum)
+    const fileName = pageImageName(baseName, pageNum, template)
     const imagePath = path.join(outputFolder, fileName)
     // pdf-to-img always returns PNG-encoded bytes regardless of file
     // extension; re-encode to real JPEG so the .jpg extension is accurate.
@@ -108,6 +124,7 @@ async function splitOne(
     pageCount,
     images: imageEntries,
     updatedAt: new Date().toISOString(),
+    filenameTemplate: template,
   }
   await writeManifest(outputFolder, manifest)
 

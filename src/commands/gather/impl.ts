@@ -17,6 +17,7 @@ export async function gatherImpl(
   const reports = await gatherAll({
     input,
     dryRun: flags.dryRun,
+    backup: flags.backup,
     checkOnly: false,
     logger,
   })

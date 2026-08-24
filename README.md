@@ -41,8 +41,8 @@ pnpm build
 The CLI exposes three commands:
 
 ```bash
-pdfslice split <input> [--level <n>] [--flatten] [--dry-run] [--verbose] [--quiet]
-pdfslice gather <input> [--dry-run] [--verbose] [--quiet]
+pdfslice split <input> [--level <n>] [--flatten] [--template <string>] [--dry-run] [--verbose] [--quiet]
+pdfslice gather <input> [--backup] [--dry-run] [--verbose] [--quiet]
 pdfslice check <input> [--verbose] [--quiet]
 ```
 
@@ -83,19 +83,23 @@ pdfslice split ./documents --flatten
 
 This places each generated output folder at the input root instead of beside each source PDF.
 
+#### Custom filename template
+
+```bash
+pdfslice split ./documents --template "page-{{page_number}}.jpg"
+```
+
+Use `{{filename}}` and `{{page_number}}` placeholders to control the page image filename (default: `{{filename}}.{{page_number}}.jpg`). Exactly one `{{page_number}}` is required. The template is saved in the manifest, so `gather`/`check` parse page numbers back out correctly without needing `--template` repeated.
+
 ### 2) Gather images back into a PDF
 
 ```bash
 pdfslice gather ./documents/sample
 ```
 
-This rebuilds a combined PDF from the page images in the split unit folder and writes a file such as:
+This rebuilds a combined PDF from the page images in the split unit folder and **overwrites the original PDF in place** (same filename, same location). A backup of the previous PDF (`sample.bak-<timestamp>.pdf`) is created first by default — pass `--no-backup` to skip it.
 
-```text
-sample.gathered.pdf
-```
-
-If a PDF already exists and the image hashes have not changed, the project skips unnecessary regeneration.
+If the PDF already reflects the current images (nothing has changed since the last gather), the project skips unnecessary regeneration.
 
 ### 3) Check for missing page images
 
@@ -108,6 +112,8 @@ This reports missing pages without creating a PDF output.
 ## Common flags
 
 - `--dry-run`: preview actions without writing files
+- `--backup` (gather only, default on): back up the existing PDF before overwriting it; use `--no-backup` to skip
+- `--template <string>` (split only): custom page-image filename template
 - `--verbose`: print debug logging
 - `--quiet`: print only errors
 - `--log-file <path>`: write logs to JSON as well as console
