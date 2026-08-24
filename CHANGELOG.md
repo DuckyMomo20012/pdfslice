@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/DuckyMomo20012/pdfslice/compare/v1.0.0...v1.1.0) (2026-08-24)
+
+
+### Features
+
+* support back up pdf file and filename template ([3ef2bc6](https://github.com/DuckyMomo20012/pdfslice/commit/3ef2bc64ced9f1d79f308bfb9877a348b31c0f3d))
+
 ## 1.0.0 (2026-08-21)
 
 
